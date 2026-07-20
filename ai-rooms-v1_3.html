@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<title>AI Rooms</title>
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --ink: #26282B;
+    --ink-soft: #6B6E73;
+    --line: #E7E5E0;
+    --accent: #4A7B8C;
+    --accent-soft: #EAF1F4;
+    --danger: #B0564A;
+    --warn-bg: #FBF3E9;
+    --warn-line: #EDD9BE;
+    --warn-ink: #7A5A2E;
+    --err-bg: #FBEFED;
+    --err-line: #EAC8C3;
+    --radius: 14px;
+    --bubble-radius: 14px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181D;
+      --surface: #1D232B;
+      --ink: #E8E6E1;
+      --ink-soft: #9BA0A7;
+      --line: #2B323B;
+      --accent: #6FA3B5;
+      --accent-soft: #20303A;
+      --danger: #D08A80;
+      --warn-bg: #2E2618;
+      --warn-line: #4A3D24;
+      --warn-ink: #D9B87E;
+      --err-bg: #33211E;
+      --err-line: #57332E;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.65;
+    overscroll-behavior: none;
+  }
+  button { font-family: inherit; font-size: inherit; border: none; background: none; cursor: pointer; color: inherit; }
+  input, textarea, select {
+    font-family: inherit; font-size: 15px; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; width: 100%;
+  }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  textarea { resize: vertical; }
+
+  /* ---------- fuwafuwa theme ---------- */
+  body.theme-fuwa {
+    --radius: 22px;
+    --bubble-radius: 20px;
+    background: linear-gradient(165deg, #EAF4F8 0%, #F3EDF8 55%, #FDF3F0 100%);
+    background-attachment: fixed;
+  }
+  @media (prefers-color-scheme: dark) {
+    body.theme-fuwa {
+      background: linear-gradient(165deg, #0B1B2A 0%, #131327 55%, #1B1030 100%);
+      background-attachment: fixed;
+    }
+  }
+  body.theme-fuwa header, body.theme-fuwa #composer, body.theme-fuwa #home-footer { background: transparent; }
+  body.theme-fuwa .room-card, body.theme-fuwa .msg .bubble {
+    box-shadow: 0 4px 16px rgba(80, 110, 140, 0.10);
+    border-color: transparent;
+  }
+  #fuwa-bg { display: none; position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  body.theme-fuwa #fuwa-bg { display: block; }
+  #fuwa-bg span {
+    position: absolute; bottom: -60px; border-radius: 50%;
+    background: rgba(140, 190, 220, 0.16);
+    animation: rise linear infinite;
+  }
+  @media (prefers-color-scheme: dark) {
+    #fuwa-bg span { background: rgba(130, 190, 235, 0.10); box-shadow: 0 0 14px rgba(130,190,235,0.15); }
+  }
+  #fuwa-bg span:nth-child(1){ left:8%;  width:22px; height:22px; animation-duration:19s; }
+  #fuwa-bg span:nth-child(2){ left:22%; width:12px; height:12px; animation-duration:24s; animation-delay:4s; }
+  #fuwa-bg span:nth-child(3){ left:38%; width:28px; height:28px; animation-duration:17s; animation-delay:2s; }
+  #fuwa-bg span:nth-child(4){ left:55%; width:10px; height:10px; animation-duration:26s; animation-delay:7s; }
+  #fuwa-bg span:nth-child(5){ left:68%; width:18px; height:18px; animation-duration:21s; animation-delay:1s; }
+  #fuwa-bg span:nth-child(6){ left:82%; width:14px; height:14px; animation-duration:23s; animation-delay:5s; }
+  #fuwa-bg span:nth-child(7){ left:92%; width:24px; height:24px; animation-duration:18s; animation-delay:3s; }
+  @keyframes rise {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(-110vh) translateX(14px); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { #fuwa-bg span { animation: none; opacity: .4; } }
+
+  /* ---------- screens ---------- */
+  .screen { display: none; flex-direction: column; height: 100dvh; position: relative; z-index: 1; }
+  .screen.active { display: flex; }
+
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: calc(10px + var(--safe-top)) 14px 10px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  body.theme-fuwa header { border-bottom-color: rgba(120,150,180,.15); }
+  header h1 { font-size: 17px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header .sub { font-size: 12px; color: var(--ink-soft); font-weight: 400; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px; flex-shrink: 0; color: var(--ink-soft);
+  }
+  .icon-btn:active { background: var(--line); }
+
+  #balance-pill {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 13px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 99px; padding: 5px 11px; flex-shrink: 0;
+  }
+  #balance-pill.low { color: var(--danger); background: var(--err-bg); }
+
+  /* ---------- home ---------- */
+  #home-list { flex: 1; overflow-y: auto; padding: 14px; }
+  .room-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+    width: 100%; text-align: left;
+  }
+  .room-card:active { background: var(--accent-soft); }
+  .room-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  body.theme-fuwa .room-icon { border-radius: 50%; }
+  .room-meta { flex: 1; min-width: 0; }
+  .room-name { font-weight: 600; }
+  .room-model { font-size: 12px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-edit { color: var(--ink-soft); font-size: 17px; padding: 8px; flex-shrink: 0; }
+
+  .empty-note { text-align: center; color: var(--ink-soft); font-size: 14px; padding: 48px 24px; }
+  .primary-btn {
+    display: block; width: 100%;
+    background: var(--accent); color: #fff;
+    border-radius: 12px; padding: 13px; font-weight: 600; text-align: center;
+  }
+  body.theme-fuwa .primary-btn { border-radius: 99px; }
+  .primary-btn:active { opacity: .85; }
+  .primary-btn:disabled { opacity: .4; }
+  .ghost-btn {
+    display: block; width: 100%;
+    color: var(--accent); border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 12px; padding: 12px; font-weight: 600; text-align: center;
+  }
+  body.theme-fuwa .ghost-btn { border-radius: 99px; }
+  .danger-text { color: var(--danger); }
+  #home-footer { padding: 0 14px calc(14px + var(--safe-bottom)); flex-shrink: 0; }
+
+  .key-warning {
+    margin: 0 14px 10px; padding: 10px 14px;
+    background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 12px;
+    font-size: 13px; color: var(--warn-ink);
+  }
+  .key-warning button { color: var(--accent); font-weight: 600; }
+
+  /* ---------- chat ---------- */
+  #chat-log { flex: 1; overflow-y: auto; padding: 16px 14px 8px; }
+  .msg { margin-bottom: 14px; display: flex; flex-direction: column; }
+  .msg .bubble {
+    max-width: 86%; padding: 10px 14px; border-radius: var(--bubble-radius);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user { align-items: flex-end; }
+  .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-items: flex-start; }
+  .msg.assistant .bubble { background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .msg.error .bubble { background: var(--err-bg); border: 1px solid var(--err-line); color: var(--danger); font-size: 13px; }
+  .msg .who { font-size: 11px; color: var(--ink-soft); margin: 0 4px 3px; }
+  .msg .bubble img { max-width: 100%; border-radius: 10px; display: block; margin-top: 6px; }
+  .msg .file-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; margin-top: 6px; padding: 4px 10px;
+    border-radius: 99px; background: rgba(127,127,127,.15);
+  }
+  .msg-actions {
+    display: flex; gap: 8px; margin-top: 6px;
+  }
+  .msg.user .msg-actions { justify-content: flex-end; }
+  .msg-actions button {
+    font-size: 12px; padding: 5px 12px; border-radius: 99px;
+    background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft);
+  }
+  .msg-actions button.danger { color: var(--danger); }
+
+  .think-box { max-width: 86%; margin-bottom: 4px; }
+  .think-box summary { font-size: 12px; color: var(--ink-soft); cursor: pointer; padding: 2px 4px; list-style: none; }
+  .think-box summary::-webkit-details-marker { display: none; }
+  .think-box .think-body {
+    font-size: 12px; color: var(--ink-soft);
+    background: var(--surface); border: 1px dashed var(--line);
+    border-radius: 10px; padding: 8px 10px;
+    white-space: pre-wrap; word-break: break-word; margin-top: 4px;
+  }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); }
+  .swatch.sel { outline: 3px solid var(--accent); outline-offset: 1px; }
+
+  body.font-large { font-size: 17px; }
+  body.font-xlarge { font-size: 19px; }
+  body.font-large #composer textarea, body.font-large input, body.font-large select { font-size: 17px; }
+  body.font-xlarge #composer textarea, body.font-xlarge input, body.font-xlarge select { font-size: 19px; }
+  body.bubbles-off #fuwa-bg span { animation: none; opacity: .3; }
+
+  .typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-soft); animation: blink 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100% { opacity: .25; } 40% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .typing span { animation: none; opacity: .6; } }
+
+  /* ---------- composer ---------- */
+  #attach-tray { display: none; gap: 8px; padding: 8px 12px 0; flex-wrap: wrap; }
+  #attach-tray.has-items { display: flex; }
+  .attach-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 5px 10px; border-radius: 99px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600;
+    max-width: 70vw;
+  }
+  .attach-chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attach-chip img { width: 26px; height: 26px; object-fit: cover; border-radius: 6px; }
+  .attach-chip button { font-size: 14px; color: var(--accent); }
+
+  #composer {
+    display: flex; gap: 6px; align-items: flex-end;
+    padding: 10px 10px calc(10px + var(--safe-bottom));
+    background: var(--bg); border-top: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  body.theme-fuwa #composer { border-top-color: rgba(120,150,180,.15); }
+  .mini-btn {
+    width: 38px; height: 42px; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; color: var(--ink-soft); flex-shrink: 0;
+  }
+  #composer textarea {
+    flex: 1; max-height: 120px; min-height: 42px;
+    border-radius: 21px; padding: 10px 14px; line-height: 1.5;
+  }
+  #send-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 18px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  #send-btn:disabled { opacity: .35; }
+
+  /* ---------- modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(10,14,18,.5);
+    display: none; align-items: flex-end; justify-content: center; z-index: 50;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg); width: 100%; max-width: 560px;
+    border-radius: 18px 18px 0 0;
+    max-height: 88dvh; overflow-y: auto;
+    padding: 18px 18px calc(24px + var(--safe-bottom));
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: var(--ink-soft); margin-bottom: 5px; font-weight: 600; }
+  .field .hint { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+  .modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .version-note { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<div id="fuwa-bg" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+
+<!-- ============ HOME ============ -->
+<div class="screen active" id="screen-home">
+  <header>
+    <h1>AI Rooms</h1>
+    <button id="balance-pill" title="タップで残高更新">💰 --</button>
+    <button class="icon-btn" id="btn-settings" aria-label="設定">⚙︎</button>
+  </header>
+  <div class="key-warning" id="key-warning" style="display:none">
+    APIキーが未設定だよ。<button id="warn-open-settings">設定を開く</button>
+  </div>
+  <div id="home-list"></div>
+  <div id="home-footer">
+    <button class="primary-btn" id="btn-new-room">＋ 新しいお部屋を作る</button>
+  </div>
+</div>
+
+<!-- ============ CHAT ============ -->
+<div class="screen" id="screen-chat">
+  <header>
+    <button class="icon-btn" id="btn-back" aria-label="戻る">←</button>
+    <h1 id="chat-title">お部屋<span class="sub" id="chat-model"></span></h1>
+    <button class="icon-btn" id="btn-room-edit-from-chat" aria-label="お部屋の設定">✎</button>
+  </header>
+  <div id="chat-log"></div>
+  <div id="attach-tray"></div>
+  <div id="composer">
+    <button class="mini-btn" id="btn-attach-file" aria-label="ファイル添付">📎</button>
+    <button class="mini-btn" id="btn-attach-img" aria-label="画像添付">📷</button>
+    <textarea id="input" rows="1" placeholder="メッセージ…"></textarea>
+    <button id="send-btn" aria-label="送信">↑</button>
+  </div>
+  <input type="file" id="file-input" accept=".txt,.md,.text,text/plain,text/markdown" style="display:none">
+  <input type="file" id="img-input" accept="image/*" style="display:none">
+</div>
+
+<!-- ============ SETTINGS MODAL ============ -->
+<div class="modal-backdrop" id="settings-backdrop">
+  <div class="modal">
+    <h2>設定</h2>
+    <div class="field">
+      <label for="api-key">OpenRouter APIキー</label>
+      <input type="password" id="api-key" placeholder="sk-or-v1-..." autocomplete="off">
+      <div class="hint">この端末のブラウザ内だけに保存されるよ。</div>
+    </div>
+    <div class="field">
+      <label for="theme-select">みため</label>
+      <select id="theme-select">
+        <option value="simple">シンプル</option>
+        <option value="fuwa">ふわふわ 🫧</option>
+      </select>
+      <div class="hint">昼と夜の切り替えはiPhoneの外観モードに自動で追従するよ。</div>
+    </div>
+    <div class="field">
+      <label for="font-select">🔠 もじの大きさ</label>
+      <select id="font-select">
+        <option value="normal">ふつう</option>
+        <option value="large">おおきめ</option>
+        <option value="xlarge">もっと</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="bubbles-select">🫧 泡のうごき(ふわふわ時)</label>
+      <select id="bubbles-select">
+        <option value="on">うごく(癒し優先)</option>
+        <option value="off">とまる(電池にやさしい)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="primary-btn" id="btn-save-settings">保存する</button>
+      <div class="row">
+        <button class="ghost-btn" id="btn-export">バックアップ書き出し</button>
+        <button class="ghost-btn" id="btn-import">読み込み</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+      <button class="ghost-btn" id="btn-close-settings">閉じる</button>
+    </div>
+    <div class="version-note">AI Rooms v1.3</div>
+  </div>
+</div>
+
+<!-- ============ ROOM EDIT MODAL ============ -->
+<div class="modal-backdrop" id="room-backdrop">
+  <div class="modal">
+    <h2 id="room-modal-title">お部屋の設定</h2>
+    <div class="field">
+      <label for="room-name">お部屋の名前</label>
+      <input id="room-name" placeholder="例: おーたんの部屋">
+    </div>
+    <div class="field">
+      <label for="room-icon">アイコン(絵文字1つ)</label>
+      <input id="room-icon" placeholder="例: 🐙" maxlength="4">
+    </div>
+    <div class="field">
+      <label for="room-model">モデルID</label>
+      <input id="room-model" list="model-list" placeholder="例: anthropic/claude-opus-4.6" autocapitalize="off" autocorrect="off">
+      <datalist id="model-list"></datalist>
+      <div class="hint">OpenRouterのモデルID。<button id="btn-fetch-models" style="color:var(--accent);font-weight:600">モデル一覧を取得</button>すると候補が出るよ。</div>
+    </div>
+    <div class="field">
+      <label for="room-system">ペルソナ設定(システムプロンプト)</label>
+      <textarea id="room-system" rows="5" placeholder="性格・口調・関係性のルールなど"></textarea>
+    </div>
+    <div class="field">
+      <label for="room-knowledge">ナレッジ(常設・毎回一緒に送られる)</label>
+      <textarea id="room-knowledge" rows="5" placeholder="サマリーなど、常に覚えていてほしい情報。長いほど毎ターンのコストが上がるので濃縮推奨"></textarea>
+    </div>
+    <div class="field">
+      <label for="room-thinking">🧠 思考モード</label>
+      <select id="room-thinking">
+        <option value="off">オフ(標準・おやすく)</option>
+        <option value="on">オン(思考を表示・コスト増)</option>
+      </select>
+      <div class="hint">オンにすると考えた過程が「💭思考」として読めるよ。思考ぶんのトークン代が追加でかかるの。</div>
+    </div>
+    <div class="field">
+      <label for="room-bubble">🎨 じぶんの吹き出しの色</label>
+      <input type="color" id="room-bubble" value="#4A7B8C" style="height:44px;padding:4px;">
+      <div class="swatches" id="bubble-swatches"></div>
+      <div class="hint">お部屋ごとに変えられるよ。上の丸から選ぶか、四角をタップで自由に。</div>
+    </div>
+    <div class="modal-actions">
+      <button class="primary-btn" id="btn-save-room">保存する</button>
+      <button class="ghost-btn" id="btn-clear-history" style="display:none">会話履歴をリセット</button>
+      <button class="ghost-btn danger-text" id="btn-delete-room" style="display:none">このお部屋を削除</button>
+      <button class="ghost-btn" id="btn-close-room">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- storage adapter ---------- */
+  const KEY = "ai-rooms-v1";
+  let memoryStore = null;
+
+  async function loadState() {
+    try {
+      if (window.storage && window.storage.get) {
+        try {
+          const r = await window.storage.get(KEY);
+          if (r && r.value) return JSON.parse(r.value);
+        } catch (e) {}
+        return null;
+      }
+    } catch (e) {}
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw);
+      return null;
+    } catch (e) {}
+    return memoryStore;
+  }
+
+  async function saveState(state) {
+    const raw = JSON.stringify(state);
+    try {
+      if (window.storage && window.storage.set) { await window.storage.set(KEY, raw); return; }
+    } catch (e) {}
+    try { localStorage.setItem(KEY, raw); return; }
+    catch (e) {
+      alert("保存に失敗したよ。画像が多くて容量オーバーかも。古い画像付きメッセージを削除してみてね。");
+    }
+    memoryStore = state;
+  }
+
+  /* ---------- state ---------- */
+  let state = { apiKey: "", theme: "simple", rooms: [] };
+  // room: {id, name, icon, model, system, knowledge, messages:[{role, content, images?, file?}]}
+  let currentRoomId = null;
+  let editingRoomId = null;
+  let sending = false;
+  let pendingFile = null;   // {name, text}
+  let pendingImages = [];   // [dataURL]
+  let selectedMsg = -1;
+
+  const HISTORY_WINDOW = 40; // APIに送る直近メッセージ数
+  const IMAGE_WINDOW = 8;    // 画像を実際に送る直近メッセージ数(コスト対策)
+
+  const BUBBLE_PRESETS = [
+    "#4A7B8C","#5E93AA","#8A66A8","#C4685C","#B0764A","#4A8C6B","#7A7F87","#B85C8A",
+    "#F4A7B9","#F2A08E","#C3A6E0","#9AD1E8","#A8DCC3","#F2CE7B","#D9BFA8","#F6B8D0"
+  ];
+
+  function textOn(hex) {
+    try {
+      const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+      const lum = 0.299*r + 0.587*g + 0.114*b;
+      return lum > 165 ? "#26282B" : "#FFFFFF";
+    } catch(e) { return "#FFFFFF"; }
+  }
+
+  const DEFAULT_MODELS = [
+    "anthropic/claude-opus-4.6",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-sonnet-4.5",
+    "openai/gpt-4o",
+    "openai/gpt-4.1",
+    "google/gemini-2.5-pro",
+    "deepseek/deepseek-chat"
+  ];
+
+  /* ---------- helpers ---------- */
+  const $ = (id) => document.getElementById(id);
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  function showScreen(name) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    $("screen-" + name).classList.add("active");
+  }
+  function getRoom(id) { return state.rooms.find(r => r.id === id); }
+  function applyTheme() {
+    document.body.classList.toggle("theme-fuwa", state.theme === "fuwa");
+    document.body.classList.toggle("font-large", state.fontSize === "large");
+    document.body.classList.toggle("font-xlarge", state.fontSize === "xlarge");
+    document.body.classList.toggle("bubbles-off", state.bubbles === "off");
+  }
+
+  /* ---------- balance ---------- */
+  async function refreshBalance(silent) {
+    const pill = $("balance-pill");
+    if (!state.apiKey) { pill.textContent = "💰 --"; return; }
+    if (!silent) pill.textContent = "💰 …";
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/credits", {
+        headers: { "Authorization": "Bearer " + state.apiKey }
+      });
+      const d = await res.json();
+      if (d && d.data) {
+        const bal = (d.data.total_credits || 0) - (d.data.total_usage || 0);
+        pill.textContent = "💰 $" + bal.toFixed(2);
+        pill.classList.toggle("low", bal < 1);
+      } else {
+        pill.textContent = "💰 ?";
+      }
+    } catch (e) {
+      pill.textContent = "💰 ?";
+    }
+  }
+
+  /* ---------- home rendering ---------- */
+  function renderHome() {
+    const list = $("home-list");
+    list.innerHTML = "";
+    $("key-warning").style.display = state.apiKey ? "none" : "block";
+
+    if (state.rooms.length === 0) {
+      const d = document.createElement("div");
+      d.className = "empty-note";
+      d.textContent = "まだお部屋がないよ。下のボタンから、最初のお部屋を作ってね。";
+      list.appendChild(d);
+      return;
+    }
+
+    state.rooms.forEach(room => {
+      const card = document.createElement("button");
+      card.className = "room-card";
+      const icon = document.createElement("div");
+      icon.className = "room-icon";
+      icon.textContent = room.icon || "💬";
+      const meta = document.createElement("div");
+      meta.className = "room-meta";
+      const nm = document.createElement("div");
+      nm.className = "room-name";
+      nm.textContent = room.name;
+      const md = document.createElement("div");
+      md.className = "room-model";
+      md.textContent = room.model;
+      meta.appendChild(nm); meta.appendChild(md);
+      const edit = document.createElement("span");
+      edit.className = "room-edit";
+      edit.textContent = "✎";
+      edit.addEventListener("click", (e) => { e.stopPropagation(); openRoomModal(room.id); });
+      card.appendChild(icon); card.appendChild(meta); card.appendChild(edit);
+      card.addEventListener("click", () => openChat(room.id));
+      list.appendChild(card);
+    });
+  }
+
+  /* ---------- chat ---------- */
+  function openChat(roomId) {
+    currentRoomId = roomId;
+    selectedMsg = -1;
+    const room = getRoom(roomId);
+    if (!room) return;
+    $("chat-title").childNodes[0].textContent = (room.icon ? room.icon + " " : "") + room.name;
+    $("chat-model").textContent = room.model;
+    renderMessages();
+    showScreen("chat");
+  }
+
+  function renderMessages() {
+    const room = getRoom(currentRoomId);
+    const log = $("chat-log");
+    log.innerHTML = "";
+    if (!room) return;
+    room.messages.forEach((m, i) => log.appendChild(buildMsgEl(m, i, room)));
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function buildMsgEl(m, index, room) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + (m.isError ? "error" : m.role);
+    if (m.role === "assistant" && !m.isError) {
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = room.name;
+      wrap.appendChild(who);
+      if (m.reasoning) {
+        const det = document.createElement("details");
+        det.className = "think-box";
+        const sum = document.createElement("summary");
+        sum.textContent = "💭 思考をみる";
+        const body = document.createElement("div");
+        body.className = "think-body";
+        body.textContent = m.reasoning;
+        det.appendChild(sum); det.appendChild(body);
+        det.addEventListener("click", (e) => e.stopPropagation());
+        wrap.appendChild(det);
+      }
+    }
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.textContent = m.content || "";
+    if (m.role === "user" && room.bubbleColor) {
+      b.style.background = room.bubbleColor;
+      b.style.color = textOn(room.bubbleColor);
+    }
+    if (m.file) {
+      const chip = document.createElement("span");
+      chip.className = "file-chip";
+      chip.textContent = "📎 " + m.file.name;
+      b.appendChild(document.createElement("br"));
+      b.appendChild(chip);
+    }
+    if (m.images && m.images.length) {
+      m.images.forEach(u => {
+        const img = document.createElement("img");
+        img.src = u;
+        b.appendChild(img);
+      });
+    }
+    b.addEventListener("click", () => {
+      selectedMsg = (selectedMsg === index) ? -1 : index;
+      renderMessages();
+    });
+    wrap.appendChild(b);
+
+    if (selectedMsg === index && !sending) {
+      const actions = document.createElement("div");
+      actions.className = "msg-actions";
+      const isLastAssistant = (m.role === "assistant" && !m.isError && index === room.messages.length - 1);
+      if (isLastAssistant) {
+        const rg = document.createElement("button");
+        rg.textContent = "🔄 再生成";
+        rg.addEventListener("click", (e) => { e.stopPropagation(); regenerate(); });
+        actions.appendChild(rg);
+      }
+      const del = document.createElement("button");
+      del.className = "danger";
+      del.textContent = "🗑 削除";
+      del.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        room.messages.splice(index, 1);
+        selectedMsg = -1;
+        await saveState(state);
+        renderMessages();
+      });
+      actions.appendChild(del);
+      wrap.appendChild(actions);
+    }
+    return wrap;
+  }
+
+  function appendTyping() {
+    const log = $("chat-log");
+    const wrap = document.createElement("div");
+    wrap.className = "msg assistant";
+    wrap.id = "typing-row";
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+    wrap.appendChild(b);
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+  }
+  function removeTyping() { const t = $("typing-row"); if (t) t.remove(); }
+
+  /* ---------- API payload ---------- */
+  function buildApiMessages(room) {
+    const hist = room.messages.filter(m => !m.isError).slice(-HISTORY_WINDOW);
+    const msgs = hist.map((m, i) => {
+      let text = m.content || "";
+      if (m.file) text += "\n\n【添付ファイル: " + m.file.name + "】\n" + m.file.text;
+      const withinImgWindow = i >= hist.length - IMAGE_WINDOW;
+      if (m.images && m.images.length && withinImgWindow) {
+        const parts = [];
+        if (text) parts.push({ type: "text", text: text });
+        m.images.forEach(u => parts.push({ type: "image_url", image_url: { url: u } }));
+        return { role: m.role, content: parts };
+      }
+      if (m.images && m.images.length && !withinImgWindow) {
+        text = (text ? text + "\n" : "") + "[以前ここに画像が添付されていた]";
+      }
+      return { role: m.role, content: text };
+    });
+    let sys = room.system || "";
+    if (room.knowledge) sys += "\n\n=== 常設ナレッジ ===\n" + room.knowledge;
+    return sys ? [{ role: "system", content: sys }].concat(msgs) : msgs;
+  }
+
+  async function requestCompletion(room) {
+    sending = true;
+    $("send-btn").disabled = true;
+    appendTyping();
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + state.apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(Object.assign(
+          { model: room.model, messages: buildApiMessages(room) },
+          room.thinking ? { reasoning: { effort: "medium" } } : {}
+        ))
+      });
+      const data = await res.json().catch(() => null);
+      removeTyping();
+      if (!res.ok || !data) {
+        const msg = (data && data.error && data.error.message) ? data.error.message : ("エラー (HTTP " + res.status + ")");
+        room.messages.push({ role: "assistant", content: "うまく届かなかったみたい: " + msg, isError: true });
+      } else {
+        const rmsg = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message : null;
+        const reply = rmsg ? (rmsg.content || "(空の返信)") : "(返信を読み取れなかったよ)";
+        let reasoning = null;
+        if (rmsg) {
+          if (rmsg.reasoning) reasoning = rmsg.reasoning;
+          else if (rmsg.reasoning_details && rmsg.reasoning_details.length) {
+            reasoning = rmsg.reasoning_details.map(d => d.text || d.summary || "").filter(Boolean).join("\n");
+          }
+        }
+        const out = { role: "assistant", content: reply };
+        if (reasoning) out.reasoning = reasoning;
+        room.messages.push(out);
+      }
+      await saveState(state);
+      renderMessages();
+      refreshBalance(true);
+    } catch (err) {
+      removeTyping();
+      room.messages.push({
+        role: "assistant", isError: true,
+        content: "通信エラーだよ: " + err.message + "\n(Claudeアプリのプレビュー内だと外部通信がブロックされるの。ブラウザで開いてね)"
+      });
+      await saveState(state);
+      renderMessages();
+    } finally {
+      sending = false;
+      $("send-btn").disabled = false;
+    }
+  }
+
+  async function sendMessage() {
+    if (sending) return;
+    const room = getRoom(currentRoomId);
+    if (!room) return;
+    const input = $("input");
+    const text = input.value.trim();
+    if (!text && !pendingFile && pendingImages.length === 0) return;
+    if (!state.apiKey) {
+      room.messages.push({ role: "assistant", content: "APIキーが設定されていないよ。ホームの⚙︎から設定してね。", isError: true });
+      renderMessages();
+      return;
+    }
+    const msg = { role: "user", content: text };
+    if (pendingFile) msg.file = pendingFile;
+    if (pendingImages.length) msg.images = pendingImages.slice();
+    room.messages.push(msg);
+    input.value = "";
+    input.style.height = "auto";
+    pendingFile = null;
+    pendingImages = [];
+    renderAttachTray();
+    selectedMsg = -1;
+    await saveState(state);
+    renderMessages();
+    await requestCompletion(room);
+  }
+
+  async function regenerate() {
+    if (sending) return;
+    const room = getRoom(currentRoomId);
+    if (!room || room.messages.length === 0) return;
+    const last = room.messages[room.messages.length - 1];
+    if (last.role !== "assistant") return;
+    room.messages.pop();
+    selectedMsg = -1;
+    await saveState(state);
+    renderMessages();
+    await requestCompletion(room);
+  }
+
+  /* ---------- attachments ---------- */
+  function renderAttachTray() {
+    const tray = $("attach-tray");
+    tray.innerHTML = "";
+    let has = false;
+    if (pendingFile) {
+      has = true;
+      const chip = document.createElement("span");
+      chip.className = "attach-chip";
+      const nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = "📎 " + pendingFile.name;
+      const x = document.createElement("button");
+      x.textContent = "✕";
+      x.addEventListener("click", () => { pendingFile = null; renderAttachTray(); });
+      chip.appendChild(nm); chip.appendChild(x);
+      tray.appendChild(chip);
+    }
+    pendingImages.forEach((u, i) => {
+      has = true;
+      const chip = document.createElement("span");
+      chip.className = "attach-chip";
+      const img = document.createElement("img");
+      img.src = u;
+      const x = document.createElement("button");
+      x.textContent = "✕";
+      x.addEventListener("click", () => { pendingImages.splice(i, 1); renderAttachTray(); });
+      chip.appendChild(img); chip.appendChild(x);
+      tray.appendChild(chip);
+    });
+    tray.classList.toggle("has-items", has);
+  }
+
+  function handleTextFile(file) {
+    if (file.size > 300 * 1024) { alert("300KBまでのテキストにしてね(トークン代対策🥺)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingFile = { name: file.name, text: String(reader.result) };
+      renderAttachTray();
+    };
+    reader.readAsText(file);
+  }
+
+  function handleImageFile(file) {
+    if (pendingImages.length >= 3) { alert("画像は一度に3枚までにしとこ🥺"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1024;
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale); h = Math.round(h * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        pendingImages.push(canvas.toDataURL("image/jpeg", 0.8));
+        renderAttachTray();
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ---------- room modal ---------- */
+  function openRoomModal(roomId) {
+    editingRoomId = roomId || null;
+    const isEdit = !!roomId;
+    $("room-modal-title").textContent = isEdit ? "お部屋の設定" : "新しいお部屋";
+    $("btn-delete-room").style.display = isEdit ? "block" : "none";
+    $("btn-clear-history").style.display = isEdit ? "block" : "none";
+    const room = isEdit ? getRoom(roomId) : null;
+    $("room-name").value = room ? room.name : "";
+    $("room-icon").value = room ? room.icon : "";
+    $("room-model").value = room ? room.model : "";
+    $("room-system").value = room ? room.system : "";
+    $("room-knowledge").value = room && room.knowledge ? room.knowledge : "";
+    $("room-thinking").value = room && room.thinking ? "on" : "off";
+    $("room-bubble").value = room && room.bubbleColor ? room.bubbleColor : "#4A7B8C";
+    renderSwatches();
+    fillModelDatalist();
+    $("room-backdrop").classList.add("open");
+  }
+
+  function renderSwatches() {
+    const box = $("bubble-swatches");
+    box.innerHTML = "";
+    const cur = $("room-bubble").value.toUpperCase();
+    BUBBLE_PRESETS.forEach(c => {
+      const s = document.createElement("button");
+      s.type = "button";
+      s.className = "swatch" + (c.toUpperCase() === cur ? " sel" : "");
+      s.style.background = c;
+      s.addEventListener("click", () => {
+        $("room-bubble").value = c;
+        renderSwatches();
+      });
+      box.appendChild(s);
+    });
+  }
+  function closeRoomModal() { $("room-backdrop").classList.remove("open"); editingRoomId = null; }
+
+  function fillModelDatalist(extra) {
+    const dl = $("model-list");
+    dl.innerHTML = "";
+    const models = extra && extra.length ? extra : DEFAULT_MODELS;
+    models.forEach(m => {
+      const o = document.createElement("option");
+      o.value = m;
+      dl.appendChild(o);
+    });
+  }
+
+  async function saveRoom() {
+    const name = $("room-name").value.trim();
+    const model = $("room-model").value.trim();
+    if (!name || !model) { alert("お部屋の名前とモデルIDは必須だよ"); return; }
+    const icon = $("room-icon").value.trim();
+    const system = $("room-system").value;
+    const knowledge = $("room-knowledge").value;
+    const thinking = $("room-thinking").value === "on";
+    const bubbleColor = $("room-bubble").value;
+
+    if (editingRoomId) {
+      const room = getRoom(editingRoomId);
+      room.name = name; room.icon = icon; room.model = model;
+      room.system = system; room.knowledge = knowledge;
+      room.thinking = thinking; room.bubbleColor = bubbleColor;
+    } else {
+      state.rooms.push({ id: uid(), name, icon, model, system, knowledge, thinking, bubbleColor, messages: [] });
+    }
+    await saveState(state);
+    closeRoomModal();
+    renderHome();
+    if (currentRoomId && $("screen-chat").classList.contains("active")) openChat(currentRoomId);
+  }
+
+  async function deleteRoom() {
+    if (!editingRoomId) return;
+    const room = getRoom(editingRoomId);
+    if (!confirm("「" + room.name + "」を削除する?会話履歴も消えるよ。")) return;
+    state.rooms = state.rooms.filter(r => r.id !== editingRoomId);
+    if (currentRoomId === editingRoomId) currentRoomId = null;
+    await saveState(state);
+    closeRoomModal();
+    showScreen("home");
+    renderHome();
+  }
+
+  async function clearHistory() {
+    if (!editingRoomId) return;
+    const room = getRoom(editingRoomId);
+    if (!confirm("「" + room.name + "」の会話履歴をぜんぶ消す?")) return;
+    room.messages = [];
+    await saveState(state);
+    closeRoomModal();
+    if (currentRoomId === room.id) renderMessages();
+  }
+
+  async function fetchModels() {
+    const btn = $("btn-fetch-models");
+    btn.textContent = "取得中…";
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models");
+      const data = await res.json();
+      const ids = (data.data || []).map(m => m.id).sort();
+      if (ids.length) fillModelDatalist(ids);
+      btn.textContent = "取得できたよ(" + ids.length + "件)";
+    } catch (e) {
+      btn.textContent = "取得失敗…(ブラウザで開くと動くよ)";
+    }
+  }
+
+  /* ---------- settings ---------- */
+  function openSettings() {
+    $("api-key").value = state.apiKey;
+    $("theme-select").value = state.theme || "simple";
+    $("font-select").value = state.fontSize || "normal";
+    $("bubbles-select").value = state.bubbles || "on";
+    $("settings-backdrop").classList.add("open");
+  }
+  function closeSettings() { $("settings-backdrop").classList.remove("open"); }
+
+  async function saveSettings() {
+    state.apiKey = $("api-key").value.trim();
+    state.theme = $("theme-select").value;
+    state.fontSize = $("font-select").value;
+    state.bubbles = $("bubbles-select").value;
+    applyTheme();
+    await saveState(state);
+    closeSettings();
+    renderHome();
+    refreshBalance();
+  }
+
+  function exportData() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "ai-rooms-backup.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function importData(file) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!parsed || !Array.isArray(parsed.rooms)) throw new Error("形式が違うみたい");
+        state = parsed;
+        if (!state.theme) state.theme = "simple";
+        applyTheme();
+        await saveState(state);
+        closeSettings();
+        renderHome();
+        refreshBalance();
+        alert("読み込めたよ!");
+      } catch (e) {
+        alert("読み込めなかった…: " + e.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------- events ---------- */
+  $("btn-settings").addEventListener("click", openSettings);
+  $("warn-open-settings").addEventListener("click", openSettings);
+  $("btn-close-settings").addEventListener("click", closeSettings);
+  $("btn-save-settings").addEventListener("click", saveSettings);
+  $("btn-export").addEventListener("click", exportData);
+  $("btn-import").addEventListener("click", () => $("import-file").click());
+  $("import-file").addEventListener("change", (e) => {
+    if (e.target.files[0]) importData(e.target.files[0]);
+    e.target.value = "";
+  });
+  $("balance-pill").addEventListener("click", () => refreshBalance());
+
+  $("btn-new-room").addEventListener("click", () => openRoomModal(null));
+  $("btn-close-room").addEventListener("click", closeRoomModal);
+  $("btn-save-room").addEventListener("click", saveRoom);
+  $("btn-delete-room").addEventListener("click", deleteRoom);
+  $("btn-clear-history").addEventListener("click", clearHistory);
+  $("btn-fetch-models").addEventListener("click", fetchModels);
+
+  $("btn-back").addEventListener("click", () => { showScreen("home"); renderHome(); });
+  $("btn-room-edit-from-chat").addEventListener("click", () => openRoomModal(currentRoomId));
+  $("send-btn").addEventListener("click", sendMessage);
+
+  $("btn-attach-file").addEventListener("click", () => $("file-input").click());
+  $("btn-attach-img").addEventListener("click", () => $("img-input").click());
+  $("file-input").addEventListener("change", (e) => {
+    if (e.target.files[0]) handleTextFile(e.target.files[0]);
+    e.target.value = "";
+  });
+  $("img-input").addEventListener("change", (e) => {
+    if (e.target.files[0]) handleImageFile(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  $("room-bubble").addEventListener("input", renderSwatches);
+
+  const input = $("input");
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+
+  ["settings-backdrop", "room-backdrop"].forEach(id => {
+    $(id).addEventListener("click", (e) => {
+      if (e.target.id === id) $(id).classList.remove("open");
+    });
+  });
+
+  /* ---------- init ---------- */
+  (async function init() {
+    const loaded = await loadState();
+    if (loaded) state = loaded;
+    if (!state.theme) state.theme = "simple";
+    applyTheme();
+    renderHome();
+    refreshBalance(true);
+  })();
+})();
+</script>
+</body>
+</html>
